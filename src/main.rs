@@ -219,25 +219,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         f => Box::new(File::create(f).unwrap()),
     };
 
-    let mut base: Option<Url> = None;
-    if let Some(b) = config.base {
+    let document = kuchiki::parse_html().from_utf8().read_from(&mut input)?;
+
+    let base = if config.detect_base {
+        link::detect_base(&document)
+    } else if let Some(b) = config.base {
         let u = Url::parse(&b);
 
         if let Err(e) = u {
             eprintln!("Failed to parse the provided base URL: {}", e);
-            process::exit(1);
-        }
+            process::exit(1)
+        };
 
-        base = Some(u.unwrap());
-    }
-
-    let document = kuchiki::parse_html().from_utf8().read_from(&mut input)?;
-
-    if config.detect_base {
-        if let Some(b) = link::detect_base(&document) {
-            base = Some(b)
-        }
-    }
+        Some(u.unwrap())
+    } else {
+        None
+    };
 
     if let Some(base) = base {
         link::rewrite_relative_urls(&document, &base);
