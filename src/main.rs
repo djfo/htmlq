@@ -20,15 +20,21 @@ use std::str;
 use url::Url;
 
 #[derive(Debug, Clone)]
+enum OutputFormat {
+    Pass,
+    TextOnly,
+    PrettyPrint,
+}
+
+#[derive(Debug, Clone)]
 struct Config {
     input_path: String,
     output_path: String,
     selector: String,
     base: Option<String>,
     detect_base: bool,
-    text_only: bool,
+    output_format: OutputFormat,
     ignore_whitespace: bool,
-    pretty_print: bool,
     remove_nodes: Option<Vec<String>>,
     attributes: Option<Vec<String>>,
 }
@@ -50,14 +56,24 @@ impl Config {
 
         let base = matches.value_of("base").map(|b| b.to_owned());
 
+        let output_format = {
+            if matches.is_present("pretty_print") {
+                OutputFormat::PrettyPrint
+            } else if !matches.is_present("text_only") {
+                OutputFormat::Pass
+            } else {
+                OutputFormat::TextOnly
+            }
+        };
+
         Some(Config {
             input_path: String::from(matches.value_of("filename").unwrap_or("-")),
             output_path: String::from(matches.value_of("output").unwrap_or("-")),
             base,
             detect_base: matches.is_present("detect_base"),
-            text_only: matches.is_present("text_only"),
+
             ignore_whitespace: matches.is_present("ignore_whitespace"),
-            pretty_print: matches.is_present("pretty_print"),
+            output_format,
             remove_nodes,
             attributes,
             selector,
@@ -74,8 +90,7 @@ impl Default for Config {
             base: None,
             detect_base: false,
             ignore_whitespace: true,
-            pretty_print: true,
-            text_only: false,
+            output_format: OutputFormat::PrettyPrint,
             remove_nodes: None,
             attributes: Some(vec![]),
         }
@@ -254,21 +269,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             continue;
         }
 
-        if config.text_only {
-            let content = serialize_text(node, config.ignore_whitespace);
-            output.write_all(format!("{}\n", content).as_ref())?;
-            continue;
+        match config.output_format {
+            OutputFormat::TextOnly => {
+                let content = serialize_text(node, config.ignore_whitespace);
+                output.write_all(format!("{}\n", content).as_ref())?;
+            }
+            OutputFormat::PrettyPrint => {
+                let content = pretty_print::pretty_print(node);
+                output.write_all(content.as_ref())?;
+            }
+            OutputFormat::Pass => {
+                let mut content: Vec<u8> = Vec::new();
+                node.serialize(&mut content)?;
+                output.write_all(format!("{}\n", str::from_utf8(&content)?).as_ref())?;
+            }
         }
-
-        if config.pretty_print {
-            let content = pretty_print::pretty_print(node);
-            output.write_all(content.as_ref())?;
-            continue;
-        }
-
-        let mut content: Vec<u8> = Vec::new();
-        node.serialize(&mut content)?;
-        output.write_all(format!("{}\n", str::from_utf8(&content)?).as_ref())?;
     }
 
     Ok(())
