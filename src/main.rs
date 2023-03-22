@@ -4,98 +4,21 @@ extern crate kuchiki;
 #[macro_use]
 extern crate lazy_static;
 
+mod config;
 mod link;
 mod pretty_print;
 
-use clap::{App, Arg, ArgMatches};
-use kuchiki::traits::*;
+use config::get_config;
 use kuchiki::ElementData;
 use kuchiki::NodeDataRef;
 use kuchiki::NodeRef;
+use kuchiki::traits::*;
 use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::process;
 use std::str;
 use url::Url;
-
-#[derive(Debug, Clone)]
-enum OutputFormat {
-    Pass,
-    TextOnly,
-    PrettyPrint,
-}
-
-#[derive(Debug, Clone)]
-struct Config {
-    input_path: String,
-    output_path: String,
-    selector: String,
-    base: Option<String>,
-    detect_base: bool,
-    output_format: OutputFormat,
-    ignore_whitespace: bool,
-    remove_nodes: Option<Vec<String>>,
-    attributes: Option<Vec<String>>,
-}
-
-impl Config {
-    fn from_args(matches: ArgMatches) -> Option<Config> {
-        let attributes = matches
-            .values_of("attribute")
-            .map(|values| values.map(String::from).collect());
-
-        let remove_nodes = matches
-            .values_of("remove_nodes")
-            .map(|values| values.map(String::from).collect());
-
-        let selector: String = match matches.values_of("selector") {
-            Some(values) => values.collect::<Vec<&str>>().join(" "),
-            None => String::from("html"),
-        };
-
-        let base = matches.value_of("base").map(|b| b.to_owned());
-
-        let output_format = {
-            if matches.is_present("pretty_print") {
-                OutputFormat::PrettyPrint
-            } else if !matches.is_present("text_only") {
-                OutputFormat::Pass
-            } else {
-                OutputFormat::TextOnly
-            }
-        };
-
-        Some(Config {
-            input_path: String::from(matches.value_of("filename").unwrap_or("-")),
-            output_path: String::from(matches.value_of("output").unwrap_or("-")),
-            base,
-            detect_base: matches.is_present("detect_base"),
-
-            ignore_whitespace: matches.is_present("ignore_whitespace"),
-            output_format,
-            remove_nodes,
-            attributes,
-            selector,
-        })
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            input_path: "-".to_string(),
-            output_path: "-".to_string(),
-            selector: "html".to_string(),
-            base: None,
-            detect_base: false,
-            ignore_whitespace: true,
-            output_format: OutputFormat::PrettyPrint,
-            remove_nodes: None,
-            attributes: Some(vec![]),
-        }
-    }
-}
 
 fn select_attributes(node: &NodeRef, attributes: &[String], output: &mut dyn io::Write) {
     if let Some(as_element) = node.as_element() {
@@ -126,87 +49,8 @@ fn serialize_text(node: &NodeRef, ignore_whitespace: bool) -> String {
     result
 }
 
-fn get_config<'a, 'b>() -> App<'a, 'b> {
-    App::new("htmlq")
-        .version("0.4.0")
-        .author("Michael Maclean <michael@mgdm.net>")
-        .about("Runs CSS selectors on HTML")
-        .arg(
-            Arg::with_name("filename")
-                .short("f")
-                .long("filename")
-                .value_name("FILE")
-                .help("The input file. Defaults to stdin")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .value_name("FILE")
-                .help("The output file. Defaults to stdout")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("pretty_print")
-                .short("p")
-                .long("pretty")
-                .help("Pretty-print the serialised output"),
-        )
-        .arg(
-            Arg::with_name("text_only")
-                .short("t")
-                .long("text")
-                .help("Output only the contents of text nodes inside selected elements"),
-        )
-        .arg(
-            Arg::with_name("ignore_whitespace")
-                .short("w")
-                .long("ignore-whitespace")
-                .help("When printing text nodes, ignore those that consist entirely of whitespace"),
-        )
-        .arg(
-            Arg::with_name("attribute")
-                .short("a")
-                .long("attribute")
-                .takes_value(true)
-                .help("Only return this attribute (if present) from selected elements"),
-        )
-        .arg(
-            Arg::with_name("base")
-                .short("b")
-                .long("base")
-                .takes_value(true)
-                .help("Use this URL as the base for links"),
-        )
-        .arg(
-            Arg::with_name("detect_base")
-                .short("B")
-                .long("detect-base")
-                .help("Try to detect the base URL from the <base> tag in the document. If not found, default to the value of --base, if supplied"),
-        )
-        .arg(
-            Arg::with_name("remove_nodes")
-                .long("remove-nodes")
-                .short("r")
-                .multiple(true)
-                .number_of_values(1)
-                .takes_value(true)
-                .value_name("SELECTOR")
-                .help("Remove nodes matching this expression before output. May be specified multiple times")
-        )
-        .arg(
-            Arg::with_name("selector")
-                .default_value("html")
-                .multiple(true)
-                .help("The CSS expression to select"),
-        )
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let config = get_config();
-    let matches = config.get_matches();
-    let config = Config::from_args(matches).unwrap_or_default();
 
     let mut input: Box<dyn io::Read> = match config.input_path.as_ref() {
         "-" => Box::new(std::io::stdin()),
@@ -267,15 +111,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         match config.output_format {
-            OutputFormat::TextOnly => {
+            config::OutputFormat::TextOnly => {
                 let content = serialize_text(node, config.ignore_whitespace);
                 output.write_all(format!("{}\n", content).as_ref())?;
             }
-            OutputFormat::PrettyPrint => {
+            config::OutputFormat::PrettyPrint => {
                 let content = pretty_print::pretty_print(node);
                 output.write_all(content.as_ref())?;
             }
-            OutputFormat::Pass => {
+            config::OutputFormat::Pass => {
                 let mut content: Vec<u8> = Vec::new();
                 node.serialize(&mut content)?;
                 output.write_all(format!("{}\n", str::from_utf8(&content)?).as_ref())?;
