@@ -53,14 +53,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config = get_config();
 
     let mut input: Box<dyn io::Read> = match config.input_path.as_ref() {
-        "-" => Box::new(std::io::stdin()),
-        f => Box::new(File::open(f).unwrap()),
+        None => Box::new(std::io::stdin()),
+        Some(f) => Box::new(File::open(f).unwrap()),
     };
 
     let stdout = std::io::stdout();
     let mut output: Box<dyn io::Write> = match config.output_path.as_ref() {
-        "-" => Box::new(stdout.lock()),
-        f => Box::new(File::create(f).unwrap()),
+        None => Box::new(stdout.lock()),
+        Some(f) => Box::new(File::create(f).unwrap()),
     };
 
     let document = kuchiki::parse_html().from_utf8().read_from(&mut input)?;

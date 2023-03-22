@@ -10,8 +10,8 @@ pub enum OutputFormat {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub input_path: String,
-    pub output_path: String,
+    pub input_path: Option<String>,
+    pub output_path: Option<String>,
     pub selector: String,
     pub base: Option<String>,
     pub detect_base: bool,
@@ -50,8 +50,8 @@ impl Config {
         };
 
         Some(Config {
-            input_path: String::from(matches.value_of("filename").unwrap_or("-")),
-            output_path: String::from(matches.value_of("output").unwrap_or("-")),
+            input_path: matches.value_of("filename").map(String::from),
+            output_path: matches.value_of("output").map(String::from),
             base,
             detect_base: matches.is_present("detect_base"),
 
@@ -66,8 +66,8 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            input_path: "-".to_string(),
-            output_path: "-".to_string(),
+            input_path: None,
+            output_path: None,
             selector: "html".to_string(),
             base: None,
             detect_base: false,
