@@ -1,10 +1,11 @@
-use clap::{ArgMatches, App, Arg};
+use clap::{App, Arg, ArgMatches};
 
 #[derive(Debug, Clone)]
 pub enum OutputFormat {
     Pass,
     TextOnly,
     PrettyPrint,
+    Attributes(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -17,7 +18,6 @@ pub struct Config {
     pub output_format: OutputFormat,
     pub ignore_whitespace: bool,
     pub remove_nodes: Option<Vec<String>>,
-    pub attributes: Option<Vec<String>>,
 }
 
 impl Config {
@@ -38,7 +38,9 @@ impl Config {
         let base = matches.value_of("base").map(|b| b.to_owned());
 
         let output_format = {
-            if matches.is_present("pretty_print") {
+            if let Some(attributes) = attributes {
+                OutputFormat::Attributes(attributes)
+            } else if matches.is_present("pretty_print") {
                 OutputFormat::PrettyPrint
             } else if !matches.is_present("text_only") {
                 OutputFormat::Pass
@@ -56,7 +58,6 @@ impl Config {
             ignore_whitespace: matches.is_present("ignore_whitespace"),
             output_format,
             remove_nodes,
-            attributes,
             selector,
         })
     }
@@ -73,7 +74,6 @@ impl Default for Config {
             ignore_whitespace: true,
             output_format: OutputFormat::PrettyPrint,
             remove_nodes: None,
-            attributes: Some(vec![]),
         }
     }
 }

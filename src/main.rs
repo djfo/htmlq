@@ -105,12 +105,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let node = css_match.as_node();
 
-        if let Some(attributes) = &config.attributes {
-            select_attributes(node, attributes, &mut output);
-            continue;
-        }
-
         match config.output_format {
+            config::OutputFormat::Attributes(ref attributes) =>
+                select_attributes(node, attributes, &mut output),
             config::OutputFormat::TextOnly => {
                 let content = serialize_text(node, config.ignore_whitespace);
                 output.write_all(format!("{}\n", content).as_ref())?;
