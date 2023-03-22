@@ -9,10 +9,10 @@ mod link;
 mod pretty_print;
 
 use config::get_config;
+use kuchiki::traits::*;
 use kuchiki::ElementData;
 use kuchiki::NodeDataRef;
 use kuchiki::NodeRef;
-use kuchiki::traits::*;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -106,8 +106,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let node = css_match.as_node();
 
         match config.output_format {
-            config::OutputFormat::Attributes(ref attributes) =>
-                select_attributes(node, attributes, &mut output),
+            config::OutputFormat::Attributes(ref attributes) => {
+                select_attributes(node, attributes, &mut output)
+            }
             config::OutputFormat::TextOnly => {
                 let content = serialize_text(node, config.ignore_whitespace);
                 output.write_all(format!("{}\n", content).as_ref())?;
@@ -120,6 +121,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let mut content: Vec<u8> = Vec::new();
                 node.serialize(&mut content)?;
                 output.write_all(format!("{}\n", str::from_utf8(&content)?).as_ref())?;
+            }
+            config::OutputFormat::Json => {
+                let mut m = serde_json::Map::new();
+                let s = serde_json::Value::String("42".to_owned());
+                m.insert("foo".to_string(), s);
+                let x = serde_json::Value::Object(m);
+                println!("{}", x)
             }
         }
     }

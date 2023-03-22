@@ -6,6 +6,7 @@ pub enum OutputFormat {
     TextOnly,
     PrettyPrint,
     Attributes(Vec<String>),
+    Json,
 }
 
 #[derive(Debug, Clone)]
@@ -38,14 +39,17 @@ impl Config {
         let base = matches.value_of("base").map(|b| b.to_owned());
 
         let output_format = {
-            if let Some(attributes) = attributes {
-                OutputFormat::Attributes(attributes)
+            use OutputFormat::*;
+            if matches.is_present("json") {
+                Json
+            } else if let Some(attributes) = attributes {
+                Attributes(attributes)
             } else if matches.is_present("pretty_print") {
-                OutputFormat::PrettyPrint
+                PrettyPrint
             } else if !matches.is_present("text_only") {
-                OutputFormat::Pass
+                Pass
             } else {
-                OutputFormat::TextOnly
+                TextOnly
             }
         };
 
@@ -54,7 +58,6 @@ impl Config {
             output_path: matches.value_of("output").map(String::from),
             base,
             detect_base: matches.is_present("detect_base"),
-
             ignore_whitespace: matches.is_present("ignore_whitespace"),
             output_format,
             remove_nodes,
@@ -111,6 +114,10 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                 .long("text")
                 .help("Output only the contents of text nodes inside selected elements"),
         )
+        .arg(
+            Arg::with_name("json")
+                .long("json")
+                .help("Output JSON"))
         .arg(
             Arg::with_name("ignore_whitespace")
                 .short("w")
