@@ -5,14 +5,18 @@ extern crate kuchiki;
 extern crate lazy_static;
 
 mod config;
+mod json;
 mod link;
 mod pretty_print;
 
 use config::get_config;
-use kuchiki::traits::*;
+use html5ever::serialize::Serialize;
+use html5ever::serialize::TraversalScope;
+use json::Json;
 use kuchiki::ElementData;
 use kuchiki::NodeDataRef;
 use kuchiki::NodeRef;
+use kuchiki::traits::*;
 use std::error::Error;
 use std::fs::File;
 use std::io;
@@ -123,25 +127,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 output.write_all(format!("{}\n", str::from_utf8(&content)?).as_ref())?;
             }
             config::OutputFormat::Json => {
-                let mut content: Vec<u8> = Vec::new();
-                node.serialize(&mut content)?;
-                let s = str::from_utf8(&content)?;
-
-                let mut attribute_map = serde_json::Map::new();
-                let elem = node.as_element().expect("error");
-                let attributes = elem.attributes.try_borrow().expect("error");
-                for (key, value) in &attributes.map {
-                    let s = key.local.to_string();
-                    let v = value.clone().value;
-                    attribute_map.insert(s, serde_json::Value::String(v));
-                }
-
-                let mut m = serde_json::Map::new();
-                m.insert("attributes".to_string(), serde_json::Value::Object(attribute_map));
-                m.insert("html".to_string(), serde_json::Value::String(s.to_string()));
-                let record = serde_json::Value::Object(m);
-
-                println!("{}", record)
+                let mut x = Json::new();
+                Serialize::serialize(node, &mut x, TraversalScope::IncludeNode).unwrap();
+                x.print();
             }
         }
     }
